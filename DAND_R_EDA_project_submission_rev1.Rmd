@@ -1,0 +1,577 @@
+Prosper Loan Exploratory Data Analysis by Alex Kettell
+========================================================
+
+```{r include=FALSE, global_options}
+knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages_required}
+# Load the required packages (if packages are not available, install them first)
+for (package in c('ggplot2', 'ggthemes', 'gridExtra','dplyr', 'tidyr', 'scales', 
+                  'RColorBrewer', 'memisc', 'reshape2', 'knitr')) {
+  if (!require(package, character.only = T, quietly = T))
+    install.packages(package)
+  library(package, character.only = T)
+}
+```
+
+***
+Load the Prosper loan data and check the dimensions.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Load_the_Data}
+# getwd() and setwd() in console to ensure I am working in the correct directory
+# Load the prosper loan data with the read.csv() function and check the dims
+# setwd("/Users/alexanderkettell/Desktop/Udacity/udacity_DAND_EDA/t2_p2_EDA")
+
+prosperLoan <- read.csv("prosperLoanData.csv")
+dim(prosperLoan)
+```
+
+# Prosper loan data set from 2014 intro:
+I have chosen to explore the Prosper loan data that contains 113,937 records - 1 for each unique loan - across 81 distinct variables.  Prosper is a peer-to-peer loan platform that allows people with excess savings to invest notional amounts in consumer grade loans with the idea that investing in a broad cross section of loans limits the overall risk for the investor.  It is assumed that this data is composed of a random sample of anonymized loans across the platform in 2014. 
+
+# Univariate Plots Section
+
+Run summaries on and plot the distributions of some of the key variables from the dataset.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Univariate_Plots1_Term}
+# this is a summary of the Term var
+summary(prosperLoan$Term)
+
+# this is a histogram of the Term as a continuous variable
+ggplot(aes(x = Term), data = prosperLoan) + geom_histogram(binwidth = 1) +
+  scale_x_continuous(breaks=seq(12,60, 6))
+```
+
+It looks like the vast majority of loans in this data have a defined term of 36 months, with a smaller number (~ 25K) having a defined term of 60 months.  It may be interesting further along in this analysis to group the loans by term and run separate analysis of loans of each term length.  A very comparatively small number of loans have a term length of 12 months and I will seek to eliminate these loans from any analysis so as not to skew the data.  Term almost becomes a categorical variable in this sense, since it is not of a continuous nature.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Univariate_Plots2_credit_score}
+# this is a summary of the borrower credit score lower range var
+summary(prosperLoan$CreditScoreRangeLower)
+
+# this is a histogram of the borrower credit score as a continuous variable
+ggplot(aes(x = CreditScoreRangeLower), data = prosperLoan, na.omit()) + 
+  geom_histogram(binwidth = 25, fill = 'purple', color = 'black') +
+  scale_x_continuous(limits=c(400,900))
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Univariate_Plots3_credit_score}
+# this is a summary of the borrower credit score upper range var
+summary(prosperLoan$CreditScoreRangeUpper)
+
+# this is another histogram of the borrower credit score as a continuous var
+ggplot(aes(x = CreditScoreRangeUpper), data = prosperLoan, 
+       na.omit(), alpha=0.7) + 
+  geom_histogram(binwidth = 25, fill = 'orange', color = 'black') +
+  scale_x_continuous(limits=c(400,900))
+```
+
+Looking at the distribution of credit scores for borrowers, we can see that the 'RangeLower' and 'RangeUpper' scores have different distributions. the unimodal variance in the data occur at different points along the x axis with the upper range showing a consistent plateau between 650 and 750 other than an abrupt 'peak' around 750.  the lower range has a similar plateau but the peak occurs at the left most side at 650.  both score ranges have 591 NA values which have been omitted from the plots, as have the scores below 400.  I will choose to work with the lower range scores because this is generally what banks do when considering loans to borrowers.
+
+Also, when applying for a loan on Prosper, many of the criteria are self-reported and/or unverified, while others are likely not even mandatory to include.  I would imagine that scores reported by consumer credit reporing bureaus are not in any of these categories and are mandatory as part of the application process.  in that sense, it is one of the most reliable indicators - for better or worse - of an applicant's creditworthiness.  I plan to use this variable in further multivariate analysis.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Univariate_Plots4_employment}
+# this is a summary of the borrower employment status duration var
+summary(prosperLoan$EmploymentStatusDuration)
+
+# this is a histogram of the borrower employment status duration var
+ggplot(aes(x = EmploymentStatusDuration), data = prosperLoan, na.omit()) + 
+  geom_histogram(binwidth = 12, fill = '#099DD9', color = 'black') +
+  scale_x_continuous(breaks=seq(0,800, 120))
+
+# this is a histogram of the borrower employment status duration var with a log-
+# transformed x-axis to normalize the data distribution
+ggplot(aes(x = EmploymentStatusDuration +1), data = prosperLoan, na.omit()) +
+  geom_histogram(fill = '#099DD9', color = 'black') +
+  scale_x_log10()
+```
+
+The data for employment duration in months is clearly right skewed in the first plot.  at first this suprised me, but then it occurred to me that it may be difficult to maintain continuous employment for periods in excess of 10 years.  whether this means at the same job is also another question worth asking:  does that explain the higher counts of loans to individuals with durations of employment between 0 - 5 years.  this may also speak to the fact that borrowers will less employment stability may apply for these types of consumer loans at a higher clip than other segments of the population.  this variable may be interesting for further bivariate analysis.
+
+In the second plot I log transformed the long-tailed employment duration data to better view the borrower distribution.  it is now more normally distributed with a peak near 100 months.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Univariate_Plots5_loan_amount}
+# this is a summary of the loan amount var
+summary(prosperLoan$LoanOriginalAmount)
+
+# this is a histogram of the loan amount var
+ggplot(aes(x = LoanOriginalAmount), data = prosperLoan) + 
+  geom_histogram(binwidth = 1000, fill = 'pink', color = 'black')
+```
+
+The original loan amount varies between a min of \$1,000, a max of \$35,000 and a median of \$6,500. most loans are for \$10,000 or less.  the data are right skewed because of the fewer number of loans for much higher relative amounts. 
+
+we see peaks of loans for rounded dollar amounts ie. \$10,000; \$15,000; \$20,000 and \$25,000.  this is likely particular to the Prosper loan platform as they would encourage borrowers to apply for loans at a rounded amount. that way, many investors can automate lending of smaller amounts across many loans and each loan can be split up without any 'leftover' amount.  my experience has shown that investors typically fund loans in \$25, \$50 or \$100 increments.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Univariate_Plots6_investors}
+# this is a summary of the number of investors per loan var
+summary(prosperLoan$Investors)
+
+# this is a histogram of the number of investors per loan var
+ggplot(aes(x = Investors), data = prosperLoan) +
+  geom_histogram(binwidth = 50, fill = '#D884A6', color = 'black')
+
+# this is a histogram of the number of investors per loan var with a log-
+# transformed x-axis to normalize the data distribution
+ggplot(aes(x = Investors), data = prosperLoan) +
+  geom_histogram(fill = '#D884A6', color = 'black') +
+  scale_x_log10()
+```
+
+
+```{r fig.width =8, fig.height =6, echo=FALSE, message=FALSE, warning=FALSE}
+# these are bar plots for severable variables that I reserve the right to
+# continue to explore in subsequent sections
+plot1 <- qplot(x = EmploymentStatus, data = prosperLoan)
+
+plot3 <- qplot(x = LoanStatus, data = prosperLoan)
+
+plot2 <- qplot(x = IsBorrowerHomeowner, data = prosperLoan)
+
+plot4 <- qplot(x = ProsperRating..Alpha., data = prosperLoan)
+
+library(gridExtra)
+grid.arrange(plot1, plot2, plot3, plot4, ncol=1)
+```
+
+I wanted to check the distribution of several categorical variables before moving on to bivariate analysis.  most borrowers are employed in the categories of 'Employed' or 'Full Time'.  homeownership is pretty evenly split between True and False, which is interesting.  and the broad cross-section of loans shows the different state that the various loans are in at the time the data was pulled.  we see that many loans are in a 'Current' or 'Completed' state and that there are various stages of 'Past Due' before the loans are in default and ultimately charged off.  a large portion of the loans have not had their borrowers rated according to the Prosper rating system with the stipulation that this has been applied to loans that originated after July 2009.
+
+I may chose to use some of these categorical variables in my bivariate analysis of borrowers and their associated loans.
+
+# Univariate Analysis
+
+### What is the structure of your dataset?
+The dataset consists of almost 114K unique loan profiles across 82 variables.
+
+### What is/are the main feature(s) of interest in your dataset?
+Many of the variables across the dataset profile the borrowers who apply for and have their loans invested in across the Prosper lending platform.  various factors end up contributing to the interest rate & annual percentage rate that the borrower is required to pay at regular monthly intervals over the term of the loan.
+
+### What other features in the dataset do you think will help support your \
+investigation into your feature(s) of interest?
+
+Credit score, grade, debt to income ratio and other categorical variables I believe contribute to Prosper's own scoring of the borrower, which in turn is reflected in the borrower's APR /interest rate. I believe the external credit scoring contributes the most to the interest rate on the loan, but will seek to verify this with my analysis.
+
+### Did you create any new variables from existing variables in the dataset?
+I have not up to this point.
+
+### Of the features you investigated, were there any unusual distributions? \
+Did you perform any operations on the data to tidy, adjust, or change the form \
+of the data? If so, why did you do this?
+
+I have log-transformed the right-skewed data for employment duration in months and the number of investors per loan.  the transformed employment duration data revealed a center mass around 100 months of continuous employment.  whether this just means at the same exact job or over successive jobs is unknown.
+
+the transformed data for number of investors per loan revealed that there is an extraordinarily high number of loans (~ 30K) funded by a single investor for each loan.  otherwise, the data are nearly normally distributed with a center mass close to 100 investors per loan.  I will seek to visualize the distribution of loans by number of investors in a more robust way.
+
+# Bivariate Plots Section
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_Plots1_interest}
+# this is a frequency ploygone of interest rate colored by employment status
+ggplot(aes(x = BorrowerRate*100, color = EmploymentStatus), 
+           data = subset(prosperLoan, !is.na(EmploymentStatus))) +
+  geom_freqpoly(binwidth = 5) +
+  labs(x = "Borrower interest rate as %")
+
+# this is a frequency ploygone of interest rate colored by homeownership status
+
+# TO THE REVIEWER: please retain that I am using homeownership status to split
+# my data
+ggplot(aes(x = BorrowerRate*100, color = IsBorrowerHomeowner), 
+           data = subset(prosperLoan, !is.na(IsBorrowerHomeowner)),
+       ylab = "Borrower interest rate as %") +
+  geom_freqpoly(binwidth = 5) +
+  labs(x = "Borrower interest rate as %")
+```
+
+In order to mix a single continuous variable with a single categorical variable the above frequency polygons display the relative distribution of loans by borrower interest rate split by employment status and homeownership.  nothing surprising here with most loans going to employed borrowers and those borrowers that went into more detail to indicate that they are employed full-time (possibly in non-exempt positions entitled to overtime pay).
+
+Homeowners look to receive a greater percentage of loans with lower interest rates than non-homeowners, especially when the rate is below 18% where there is a crossover point.  above the 18% threshold we see that loans to non-homeowners outnumber loans to homeowners.  this is interesting.
+
+I would like to look some more at borrower interest rate and some other variables that may be strongly correlated.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_Plots2_i_yield}
+# this is a scatterplot of borrower interest rate and lender yield that shows
+# the near perfect linear equivalency of these 2 vars
+
+# TO THE REVIEWER: borrower interest rate and lender yield are equivalents. I
+# reserve the right to use them interchangeably throughout my EDA by demonstra-
+# ting that here!
+ggplot(aes(x = BorrowerRate, y = LenderYield), data = prosperLoan) + 
+  geom_point(alpha = 1/50) +
+  xlim(0, 0.4)
+
+ggplot(aes(x = BorrowerRate, y = EstimatedEffectiveYield), 
+       data = prosperLoan, na.omit()) + 
+  geom_jitter(alpha = 1/25)
+```
+
+It makes sense for the borrower interest rate to be near perfectly linear to the lender yield, since interest rate = yield less servicing fees.  there is slight shadowing below the primary line due to the loan servicing fees.
+
+the second plot is a bit more difficult to interpret since the estimated effective yield accounts for expected losses from charge-offs.  here we see several linear bands in the data where the borrower rate is positive and the estimated yield is actually negative!  so when including expected losses and servicing fees the investors in these loans either already have or can expect to lose money. the bands tell me that the Prosper rating system likely groups these loans into risk categories and assigns expected yield based on risk.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_Plots3_i_credit}
+# this is testing for correlation between borrower credit score and interest
+# rate using the Pearson method
+with(prosperLoan, cor.test(BorrowerRate, CreditScoreRangeLower, 
+                           method = "pearson"))
+with(prosperLoan, cor.test(BorrowerRate, CreditScoreRangeUpper, 
+                           method = "pearson"))
+
+# this is a scatterplot depicting 2 continuous vars: credit score & interest rate
+# I have also added a linear smooth line to show downward trend
+
+# TO THE REVIEWER: I may choose to reverse the axes of this chart further along
+# in the EDA to better fit my plotting.  this should not be a surprise.
+ggplot(aes(x = BorrowerRate*100, y = CreditScoreRangeLower), 
+       data = prosperLoan, na.omit()) + 
+  geom_jitter(alpha = 1/100, color = "blue") +
+  xlim(0, 40) +
+  labs(x = "Borrower interest rate as %", y = "Credit score lower") +
+  geom_smooth(method = 'lm', color = 'orange')
+```
+
+To my surprise there is a fairly weak negative correlation (r^2 = -0.46157) between borrower credit score and interest rate.  a negative correlation at all would make sense because the higher a borrower's credit score is, the more creditworthy they are considered, and the better (lower) an interest rate they should get on a loan.  clearly there are other factors affecting borrower interest rates.
+
+Credit score is bunched in a 'cloud' formation mostly between 650 and 850.  we can distinguish vertical bands along integers in the interest rate expressed as a percentage and a range of credit scores.  there are also a string of faded data points along the bottom where it doesn't seem Prosper was able to acquire an individual's credit score and so must have used another metric to gauge risk.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_Plots3_i_debt}
+# this is testing for correlation between debt to income ratio and interest
+# rate using the Pearson method
+
+# TO THE REVIEWER: I am choosing to use debt:income ratio here for the first
+# time in the bivariate plots section.  this is part of my "stream-of-consciousness"
+# approach as permitted in the Udacity 'Project Details' section
+with(prosperLoan, cor.test(BorrowerRate, DebtToIncomeRatio, method = "pearson"))
+
+# this is a scatterplot depicting 2 continuous vars: debt:income ratio &
+# borrower interest rate.  I have chosen not to add a smooth line
+ggplot(aes(x = BorrowerRate, y = DebtToIncomeRatio), data = prosperLoan, na.omit()) + 
+  geom_jitter(alpha = 1/20, color = "orange") +
+  ylim(0, quantile(prosperLoan$DebtToIncomeRatio, 0.99, na.rm=T)) +
+  labs(x = "Borrower interest rate as %", y = "Debt to Income Ratio")
+  #geom_smooth(method = 'lm', color = 'blue')
+```
+
+Limiting debt:income ratio to account for 99% of values we see that no linear relationship exists between debt:income and borrower interest rate.  this is confirmed with an r^2 value of 0.0629.  in the multivariate plots section we could see if this is due to the debt levels carried by homeowners in particular.
+
+I chose to eliminate the top 1% of debt:income ratio because of the disclaimer in the variables file over debt levels listed as 10x income.  these values are most assuredly outliers that skew otherwise insightful results when working with debt:income ratio.
+
+```{r echo = FALSE, message=FALSE, warning=FALSE, Bivariate_mean_debt_income}
+# here I have created a conditional variable out of mean & median debt:income 
+# ratio and group it by the borrower's self-reported monthly income. we see from
+# the table head below that income is rubbish data, which makes this cond var
+# difficult to use in further analysis
+prosperLoan.debt_by_income <- prosperLoan %>% 
+  filter(StatedMonthlyIncome != 0) %>%
+  group_by(StatedMonthlyIncome) %>%
+  summarise(debt_income_mean = mean(DebtToIncomeRatio),
+            debt_income_median = median(as.numeric(DebtToIncomeRatio)),
+            n = n()) %>%
+  arrange(StatedMonthlyIncome)
+
+head(prosperLoan.debt_by_income, 15)
+```
+
+```{r echo = FALSE, message=FALSE, warning=FALSE, Bivariate_Plots4_mdebt_income}
+# here I've created a scatterplot to depict mean debt:income ration by stated
+# monthly income.  monthly income has been log-transformed to render to the data
+# visually interpretable, which I explain further in the comments
+ggplot(aes(x = StatedMonthlyIncome, y = debt_income_mean), 
+       data = prosperLoan.debt_by_income) + 
+  geom_jitter(color = 'purple', alpha = 1/10) +
+  scale_x_log10(labels = comma) +
+  ylim(0, quantile(prosperLoan$DebtToIncomeRatio, 0.99, na.rm=T))
+```
+
+Once again for this plot I limited the y-variable to 99% of observations because of instances where a placeholder value of 10.01 exists. this also keeps the y-axis value below a 1:1 debt to income ratio ie. a debt:income ratio of 1.0
+
+I have also log transformed the self-reported monthly income on the x-axis to make the data displayable.  we see many different debt:income ratio values for monthly incomes below \$10,000 with relatively lower ratios for incomes abve \$10,000.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_mean_debt_home}
+# here I have created a conditional variable out of mean & median debt:income 
+# ratio and group it by the borrower's homeownership status, which is a binary
+# TRUE /FALSE factor var.  please see comments for further explanation.
+prosperLoan.debt_by_home <- prosperLoan %>% drop_na(DebtToIncomeRatio) %>%
+  group_by(IsBorrowerHomeowner) %>%
+  summarise(debt_home_mean = mean(DebtToIncomeRatio),
+            debt_home_median = median(DebtToIncomeRatio),
+            n = n())
+
+head(prosperLoan.debt_by_home)
+```
+
+Here I wanted to check the difference in conditional mean & median debt:income ratio for homeowners v non-homeowners and was able to do so after figuring out to `drop_na()` values from the ratio prior to the `group_by()` homeownership.  Suprisingly, the mean and median debt:income ratios for each category are nearly equal.  I'm not going to bother plotting this conditional mean and median for now.
+
+###BOX PLOTS FOR HOMEOWNERSHIP : credit score & borrower rate
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_boxPlots}
+# summary and boxplots for bivariate analysis of variables that became of
+# interest as my EDA progressed.
+
+# TO THE REVIEWER:  this is part of my "stream-of-consciousness" approach as
+# permitted in the Udacity 'Project Details' section. I am introducing these
+# variables relationships now because they have become of interest.
+by(prosperLoan$CreditScoreRangeLower, prosperLoan$IsBorrowerHomeowner, summary)
+
+ggplot(aes(x = IsBorrowerHomeowner, y = CreditScoreRangeLower), 
+      data = subset(prosperLoan, CreditScoreRangeLower >0)) +
+      geom_boxplot()
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_boxPlots2}
+# summary and boxplots for bivariate analysis of interest rate and homeownership
+# status
+
+# TO THE REVIEWER:  this is part of my "stream-of-consciousness" approach as
+# permitted in the Udacity 'Project Details' section. I am introducing these
+# variables relationships now because they have become of interest.
+by(prosperLoan$BorrowerRate, prosperLoan$IsBorrowerHomeowner, summary)
+
+ggplot(aes(x = IsBorrowerHomeowner, y = BorrowerRate*100), 
+      data = subset(prosperLoan, !is.na(IsBorrowerHomeowner))) +
+      geom_boxplot()
+```
+
+# Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. How did the feature(s) of interest vary with other features in \
+the dataset?
+
+Throughout my bivariate explorations I have been trying examine the variables that contribute most to a borrower's assigned interest rate.  I have not found any strong linear correlations that affect interest rate as a response variable.
+
+### Did you observe any interesting relationships between the other features \
+(not the main feature(s) of interest)?
+
+I found an unexpected equivalence between the debt:income ratios of homeowners and non-homeowners.  originally I had suspected that homeowners would carry a much higher debtload with a mortgage and that this would have a noticeable effect on the debt:income ratio.  that was not the case and leads me to question how the debt:income ratio is calculated.
+
+### What was the strongest relationship you found?
+The strongest relationship I encountered between 2 variables was between credit score (lower range) and borrower interest rate.  even as the strongest I found, this correlation was still weak with an r^2 value of -0.46157
+
+the other realtionships that I plotted between borrower rate and lender yield showed expected strong relationships since the point of the Prosper platform is to provide a close spread between interest rate and yield.  if the spread were to wide, Prosper would not survive as a company.
+
+# Multivariate Plots Section
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE, Multivariate_summary_credit}
+# here I have created another conditional variable out of mean & median borrower 
+# interest rate and grouped by credit score and borrower's homeownership status
+prosper.i_by_credit_home <- prosperLoan %>% na.omit() %>% 
+  group_by(CreditScoreRangeLower, IsBorrowerHomeowner) %>%
+  summarise(mean_i = mean(BorrowerRate),
+            median_i = median(BorrowerRate),
+            n = n()) %>%
+  arrange(CreditScoreRangeLower)
+```
+
+```{r echo=FALSE,  message=FALSE, warning=FALSE, Multivariate_Plots_conditional_summary_home_creditscore}
+# these are line plots of the above conditional mean & median interest rates
+ggplot(aes(x = CreditScoreRangeLower, y = mean_i, color = IsBorrowerHomeowner),
+       data = prosper.i_by_credit_home) + 
+  geom_line()
+
+ggplot(aes(x = CreditScoreRangeLower, y = median_i, color = IsBorrowerHomeowner),
+       data = prosper.i_by_credit_home) + 
+  geom_line()
+```
+
+Here we see the line plots for conditional summary stats (mean & median) for borrower interest rate by credit score value split between homeownership status.  notice that credit scores are generally higher at both mean and median interest rate points for homeowners vs. non-homeowners.  mean & median credit scores for non-homeowners are capped below 800.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Multivariate2}
+# here I have created another conditional variable out of mean & median borrower 
+# interest rate and grouped by credit score and Prosper loan rating
+
+# TO THE REVIEWER: here I have introduced Prosper loan rating which was used for
+# a bar plot in the univariate section
+prosper.i_by_credit_Prating <- prosperLoan %>% na.omit() %>% 
+  group_by(CreditScoreRangeLower, ProsperRating..Alpha.) %>%
+  summarise(mean_i = mean(BorrowerRate),
+            median_i = median(BorrowerRate),
+            n = n()) %>%
+  arrange(CreditScoreRangeLower)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, Multivariate_Plots2}
+# reordered the Prosper rating levels so that they are visually consistent with
+# the ordered data ie. 'HR' at top, 'AA' on bottom
+prosperLoan$ProsperRating <- factor(prosperLoan$ProsperRating..Alpha.,
+                                    levels = c('HR', 'E', 'D', 'C', 'B', 'A',
+                                               'AA', 'undefined'), 
+                                    ordered = TRUE)
+
+# this is a line plot of the above conditional mean & median interest rates
+# leveled by Prosper rating
+ggplot(aes(x = CreditScoreRangeLower, y = BorrowerRate*100, 
+           color = ProsperRating),
+       data = subset(prosperLoan, CreditScoreRangeLower >600)) + 
+  geom_line(stat = 'summary', fun.y = mean) +
+  labs(x = "Credit score", y = "Mean Borrower i_rate as %")
+```
+
+Above are the line plots for conditional means of borrower interest rate by credit score value greater than 600 (loans with lower than a 600 credit score were all in an undefined ratings bucket) split between the Prosper rating factors.  we clearly see strata of loans defined by flat lines along certain mean interest rate values with the reddish line for loans with an undefined Prosper rating decreasing along the x-axis as credit score increases along the y-axis.  these are likely loans funded prior to July 2009 and hence external to the Prosper ratings system.
+
+```{r echo=FALSE, Multivariate_Plots_conditional_summary_Term_creditscore}
+# convert loan term into a factor variable
+prosperLoan$Term_factor <- factor(prosperLoan$Term)
+
+# this is a line plot for mean interest rates split by loan term discrete var
+ggplot(aes(x = CreditScoreRangeLower, y = BorrowerRate*100, color = Term_factor),
+       data = subset(prosperLoan, CreditScoreRangeLower >600)) + 
+  geom_line(stat = 'summary', fun.y = mean) +
+  labs(x = "Credit score", y = "Mean Borrower i_rate as %")
+```
+
+I converted loan term to a factor variable and did a quick split of mean borrower interest rate by credit score value.  it is quite apparent that interest rates are higher for longer termed loans given a constant credit score value.  that makes sense given that long-term interest rates are most often higher than short & medium-term interest when the US economy is functioning properly.  there are several points in the above plot where 36-month and 60-month interest rates are slightly inverted (where shorter term mean rates are higher than longer mean term rates).
+
+```{r echo=FALSE, Multivariate_Plots_conditional_mean_i_employment_duration}
+# re-ordered employment status factor variable
+prosperLoan$EmploymentStatus <- factor(prosperLoan$EmploymentStatus,
+                                    levels = c('Self-employed', 'Employed',  
+                                               'Full-time', 'Part-time', 'Retired', 
+                                               'Other', 'Not employed'), 
+                                    ordered = TRUE)
+
+# scatterplot with mean borrower interest rate and employment duration in months
+# this is then colored by qualitative color set in to reveal patterns
+ggplot(aes(x = EmploymentStatusDuration, y = BorrowerRate*100, color = EmploymentStatus),
+       data = subset(prosperLoan, EmploymentStatusDuration >0)) + 
+  geom_jitter(stat = 'summary', fun.y = mean, alpha = 1/2) +
+  scale_x_log10(limits = c(1,1000)) +
+  theme_dark() +
+  scale_color_brewer(type = 'qual', guide = guide_legend(title = 'Employment Status', 
+                                                        reverse = F)) +
+  labs(x = "Employment Duration in months", y = "Mean Borrower i_rate as %")
+```
+
+This multivariate plot is a scatterplot of mean borrower interest rate responding to log-transformed employment duration in months.  this data is then split and colored by employment status in order to see if we can pick out any trends.  a much tighter cluster of points is found towards the right side of the x-axis signaling great number of loans to people with between 100 and ~800 months of continuous, full time employment or self-employment.  we see the other employment status signifiers -- such as 'Retired' or 'Not employed' -- on the outskirts of the main cluster.  noticeably, 'Retired' status loans have lower mean interest rates than the 'Not employed' classified loans.
+
+```{r echo=FALSE, Linear_Model}
+# attempt at linear model to show stacked correlation between borrower interest
+# rate and key vars
+mod1 <- lm(I(BorrowerRate) ~ I(CreditScoreRangeLower), data = prosperLoan)
+mod2 <- update(mod1, ~ . + EmploymentStatusDuration)
+mod3 <- update(mod2, ~ . + DebtToIncomeRatio)
+mod4 <- update(mod3, ~ . + LoanOriginalAmount)
+
+mtable(mod1, mod2, mod3, mod4)
+```
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. Were there features that strengthened each other in terms of \
+looking at your feature(s) of interest?
+
+In this section we have observed multiple variables as explanatory of fluctuations in loan interest rates among the sample population of borrowers.  First, we saw that homeownership generally tracks to a higher mean /median interest rate given a specific credit score value, and vice versa.  then we took a look a Prosper's own loan ratings system and saw how borrower interest rates stay relatively close to specific mean interest rate values along the credit score spectrum.  we even saw how some mean interest rates in certain ratings catergories -- such as D & E -- actually go up as credit scores improve!  following that we looked at mean interest rates by credit score and confirmed that longer term interest rates are higher than shorter term rates holding credit scores constant, but that rates trend downward across all loan terms as credit ratings improve.
+
+### Were there any interesting or surprising interactions between features?
+
+What is interesting in all of this is that no one explanatory variable beyond credit score can correlate explicitly to the determination of a borrowers interest rate, and that even in certain edge cases the interest rate will increase as credit score improves; which is the inverse from what we would expect.
+
+### OPTIONAL: Did you create any models with your dataset? Discuss the \
+strengths and limitations of your model.
+
+The R-squared values in my linear model that attempt to capture the effect of mutiple variables on borrower interest rate are quite weak.  clearly there are not any intuitive relationships between interest rate and any of the variables that I picked out of the 82 possibilities.  I had originally tried to pick variables which I thought would reveal a correlative relationship.  maybe I should have asked an actuary or a loan underwriter.
+
+------
+
+# Final Plots and Summary
+
+### Plot One
+
+```{r fig.width =8, fig.height =8, echo=FALSE, Plot_One}
+# included ordered Prosper ratings which excluded NA values from the colored vis
+# I don't understand why NA has not been assigned a color here
+
+# TO THE REVIEWER:  this was done at the advice of my last reviewer
+ggplot(aes(x = CreditScoreRangeLower, y = BorrowerRate*100, 
+           color = ProsperRating), 
+       data = subset(prosperLoan, CreditScoreRangeLower >500)) + 
+  geom_jitter(alpha = 0.4) + scale_color_brewer(type = 'div', 
+                     guide = guide_legend(title = 'Prosper rating',
+                                          reverse = F)) +
+  labs(x = "Credit score", y = "Borrower interest rate as %") +
+  geom_smooth(method = 'lm', color = 'orange') +
+  ggtitle("Borrower Interest Rate and Credit Score per Prosper Ratings")
+```
+
+### Description One
+Final Plot 1 is a scatterplot of borrower interest rate for credit scores above 0 for different levels in the Prosper ratings system.  as expected we see stronger ratings (A, AA, B) clustered below the trendline and to the right of the x-axis for credit score.  the weaker categories (C, D, E, HR) are above the smoothed mean trendline, but are also present for higher values of Credit score along the x-axis.
+
+We also see a dark brown cluster of data to the left both above and below the mean trendline.  the color signifies loans issued prior to July 2009 that were not rated by Prosper.  for some interesting reason these loans are mostly for lower sub-prime credit profiles according to the FICO credit scores.
+
+### Plot Two
+
+```{r fig.width =8, fig.height =8, echo=FALSE, Plot_Two}
+# I have done a lot of analysis with homeowner status as chose to incorporate it
+# here to discern whether there is any noticeable divergence: there is not
+
+# again, I am not able to color the NA values
+ggplot(aes(x = CreditScoreRangeLower, y = BorrowerRate*100, 
+           color = ProsperRating), 
+       data = subset(prosperLoan, CreditScoreRangeLower >500)) + 
+  geom_jitter(alpha = 0.4) + scale_color_brewer(type = 'div', 
+                     guide = guide_legend(title = 'Prosper rating',
+                                          reverse = F)) +
+  labs(x = "Credit score", y = "Borrower interest rate as %") +
+  geom_smooth(method = 'lm', color = 'orange') +
+  facet_wrap(~ IsBorrowerHomeowner, ncol = 2, labeller = "label_both") +
+  ggtitle("Borrower Interest Rate and Credit Score per Prosper Ratings",
+          subtitle = "Split by Homeownership Status")
+```
+
+### Description Two
+Building on the previous plot we can split the data further by accounting for homeownership status where the left plot shows non-homeowners and the right plot is for homeowners.  I would have hoped that homeownership status, and hence carrying a mortgage if the house is not already paid off, would have affected credit to interest rate composition.  what we can notice is that the mean trendline of non-homeowners is slightly more flat than that for homeowners; meaning that interest rates are slightly less responsive to changes in credit scores for one category (non-owner) vs. the other (owners).
+
+The loan composition for each category is largely similar, though we do notice that there are more 'unrated' loans for non-owners and more 'high-risk' loans for homeowners.
+
+### Plot Three
+
+```{r fig.width =8, fig.height =8, echo=FALSE, Plot_Three}
+## re-ordered income range factor variable
+prosperLoan$IncomeRange <- factor(prosperLoan$IncomeRange, 
+                              levels = c('$100,000+',
+                           '$75,000-99,999',
+                          '$50,000-74,999',
+                          '$25,000-49,999',
+                          '$1-24,999',
+                          '$0',
+                          'Not employed'), ordered = TRUE)
+
+# TO THE REVIEWER: I am not able to get the $100,000+ factor level to display!!
+ggplot(aes(x = DebtToIncomeRatio, y = BorrowerRate*100, color = IncomeRange), 
+       data = subset(prosperLoan, !is.na(IncomeRange))) + 
+  geom_jitter(alpha = 0.5) + scale_color_brewer(type = 'seq', direction =-1,
+                     guide = guide_legend(title = 'Income Levels')) +
+  xlim(0, quantile(prosperLoan$DebtToIncomeRatio, 0.99, na.rm=T)) +
+  labs(x = "Debt to Income ratio", y = "Borrower interest rate as %") +
+  geom_smooth(method = 'lm', color = 'black') +
+  theme_dark() +
+  ggtitle("Borrower Interest Rate and Debt to Income Ratio by Income Level")
+
+# TO THE REVIEWER: Here also in the correction provided by the last reviewer 
+# I am not able to get the $100,000+ factor level to display
+ggplot(data=subset(prosperLoan, !is.na(IncomeRange)), 
+       aes(y=BorrowerRate, x=DebtToIncomeRatio,color=IncomeRange)) +
+  xlim(0, quantile(prosperLoan$DebtToIncomeRatio, 0.99, na.rm=T)) +
+  geom_point()+
+  scale_color_brewer(type='seq', direction = -1) +
+  theme_dark()
+```
+
+### Description Three
+Here our final plot displays borrower interest rate and debt:income similar to the bivariate plot that was created earlier.  here we see that the loan data can we further visualized to display self-reported income levels via a qualitative color scale.  we see that while incomes vary across the portfolio of loans, those borrowers that report incomes in the $74,999 range and below tend to carry higher debt to income levels.  we can only assume that debt:income ratios have been calculated exclusive of the loan in the loan application and once the loan has been approved and funded, borrowers would see an increase in debt holding income constant.  
+
+though a majority of loans are listed as 'Income Verifiable' we still see a number of data points where income is 'Not displayed'.  these loans tend to carry exhorbitant interest rates.
+
+------
+
+# Reflection
+
+The Prosper loan dataset contains a wealth of information across nearly 114,000 consumer loans issued pior to 2014, with some variables containing descriptions dating the loans back before July 2009.  the univariate exploration enabled me to understand the structure of the dataset as well as some key variables that based on my experience with a portfolio of consumer loans on a similar platform.  subsequent bivariate and multivariate explorations led to some interesting findings of the near total lack of strong relationships between borrower interest rate -- a key response variable along with APR and lender /investor yield -- and the selected explanatory variables.  investors in loans make decisions on which loans to fund based on interest rate and perceived risk.
+
+I was most surprised that borrower credit score did not have a stronger correlation to interest rate, as the FICO credit score is the most objective and comprehensive 3rd party sourced piece of evaluatory information that Prosper collects on each individual borrower.  I then explored interest rate relative to debt to income ratio and did not find a strong relationship at all.  homeownership was another binary factor variable that I thought would have an outsize effect on debt to income ration and hence interest rate, but that did not seem to be the case.
+
+Finally I relented and introduced the proprietary Prosper Rating into my analysis which classified loans based on risk factors not supposedly beyond just credit score.  credit score proved to be the strongest related variable to borrower interest rate and slicing these loans up by Prosper rating showed clear stratification between loan segments and the interest rate -- by extension yield /return -- assigned at the approval for funding of the loan.
+
+Given all of the data that was provided I was slightly disappointed in my inability to find tha 'secret sauce' that Prosper uses to risk assess these loans.  at the end of the day I'm left to believe that Prosper uses credit score and maybe a few other weighted variables and calls it a day.  for further analysis I would have liked to use a uniform dataset that did not include a sizeable portion of loans that were left unclassified for certain factor variables or had missing numeric values for continuous variables.  I would have much preferred an updated real life dataset to perform this analysis.
+
+One thing I have learned is that I would not engage as an investor /lender on Prosper's platform for the purposes of yielding a market-beating return on my investment.  I'd bet losses and chargeoffs are quite underestimated.
